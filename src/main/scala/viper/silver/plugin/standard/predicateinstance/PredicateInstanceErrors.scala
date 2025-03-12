@@ -6,12 +6,10 @@
 
 package viper.silver.plugin.standard.predicateinstance
 
-import viper.silver.verifier.{AbstractVerificationError, ErrorMessage, ErrorReason, ExtensionAbstractVerificationError}
+import viper.silver.verifier.{AbstractVerificationError, ErrorMessage, ErrorReason}
 import viper.silver.verifier.reasons.ErrorNode
 
-sealed abstract class PredicateInstanceError extends ExtensionAbstractVerificationError
-
-case class PredicateInstanceNoAccess(override val offendingNode: ErrorNode, override val reason: ErrorReason, override val cached: Boolean) extends PredicateInstanceError {
+case class PredicateInstanceNoAccess(override val offendingNode: ErrorNode, override val reason: ErrorReason, override val cached: Boolean) extends AbstractVerificationError {
   override protected def text: String = "Accessing predicate instance might fail."
 
   override def withReason(reason: ErrorReason): AbstractVerificationError = PredicateInstanceNoAccess(this.offendingNode, this.reason, cached)

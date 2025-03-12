@@ -4,13 +4,9 @@
 //
 // Copyright (c) 2011-2019 ETH Zurich.
 
-import org.scalatest.BeforeAndAfter
-import org.scalatest.matchers.should.Matchers
+import org.scalatest.{BeforeAndAfter, FunSuite, Matchers}
 import viper.silver.testing._
 import java.nio.file.{FileSystems, Path}
-
-import org.scalatest.funsuite.AnyFunSuite
-
 import scala.collection.immutable.Nil
 
 object TestFixtures {
@@ -36,7 +32,7 @@ case class DummyOutput(file: Path, lineNr: Int, fullId: String) extends Abstract
 }
 
 /** Tests [[viper.silver.testing.OutputMatcher]]. */
-class OutputMatcherTest extends AnyFunSuite with BeforeAndAfter with Matchers {
+class OutputMatcherTest extends FunSuite with BeforeAndAfter with Matchers {
   import TestFixtures._
 
   test("expected output") {
@@ -71,7 +67,7 @@ class OutputMatcherTest extends AnyFunSuite with BeforeAndAfter with Matchers {
 }
 
 /** Tests [[viper.silver.testing.TestAnnotations]]. */
-class TestAnnotationsTest extends AnyFunSuite with BeforeAndAfter with Matchers {
+class TestAnnotationsTest extends FunSuite with BeforeAndAfter with Matchers {
   import TestFixtures._
 
   val annotations = TestAnnotations(
@@ -117,7 +113,7 @@ class TestAnnotationsTest extends AnyFunSuite with BeforeAndAfter with Matchers 
 }
 
 /** Tests [[viper.silver.testing.OutputAnnotationId]]. */
-class OutputAnnotationIdTest extends AnyFunSuite with BeforeAndAfter with Matchers {
+class OutputAnnotationIdTest extends FunSuite with BeforeAndAfter with Matchers {
   val foo = OutputAnnotationId("foo", None)
   val fooBar = OutputAnnotationId("foo", Some("bar"))
 

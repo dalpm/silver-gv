@@ -1,8 +1,6 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-//:: IgnoreFile(/silver/issue/222/)
-
 method main() returns ()
  requires (!true || true)
  ensures (!true || true)
@@ -10,13 +8,13 @@ method main() returns ()
    var b:Bool
    assert((!true || true))
 
-   while((!true || true)) 
+   while((!true || true))
     invariant (!true || true)
    {
      b := (!true || true)
    }
 }
-
+/*
 function fun():Bool
  requires (!true || true)
  ensures (!true || true)
@@ -29,7 +27,7 @@ domain Domain{
         (!true || true)
     }
 }
-
+*/
 predicate pred()
 {
     (!true || true)

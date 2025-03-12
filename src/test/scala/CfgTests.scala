@@ -5,13 +5,12 @@
 // Copyright (c) 2011-2019 ETH Zurich.
 
 import java.nio.file.Paths
-
 import TestHelpers.MockSilFrontend
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.FunSuite
 import viper.silver.ast.{Exp, Not}
 import viper.silver.cfg.ConditionalEdge
 
-class CfgTests extends AnyFunSuite {
+class CfgTests extends FunSuite {
   val count = 100
   val prefix = "cfgtests/determinism/"
   val files = Seq("if", "while")
@@ -45,7 +44,7 @@ class CfgTests extends AnyFunSuite {
     }
   }
 
-  private def repeat(n: Int)(body: => Unit): Unit = for (_ <- 1 to n) body
+  private def repeat(n: Int)(body: => Unit): Unit = for (i <- 1 to n) body
 
   private def ordered(left: Exp, right: Exp): Boolean = (left, right) match {
     case (Not(l), Not(r)) => ordered(l, r)

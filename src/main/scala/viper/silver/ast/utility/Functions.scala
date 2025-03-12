@@ -12,52 +12,30 @@ import org.jgrapht.alg.connectivity.GabowStrongConnectivityInspector
 import org.jgrapht.graph.{DefaultDirectedGraph, DefaultEdge}
 import org.jgrapht.traverse.TopologicalOrderIterator
 
-import scala.collection.mutable.{ListBuffer, Set => MSet}
-import scala.jdk.CollectionConverters._
+import scala.collection.mutable.{Set => MSet}
+import scala.collection.JavaConverters._
 
 /**
  * Utility methods for functions.
  */
 object Functions {
   case class Edge[T](source: T, target: T)
-
   def allSubexpressions(func: Function): Seq[Exp] = func.pres ++ func.posts ++ func.body
-  def allSubexpressionsIncludingUnfoldings(program: Program)(func: Function): Seq[Exp] = {
-    var visitedPredicates = Set[String]()
-    var subexpressions = allSubexpressions(func)
-    val unfoldings = new ListBuffer[Unfolding]
-    unfoldings ++= (subexpressions map (e => e.deepCollect{case u@Unfolding(_, _) => u})).flatten
-    var i = 0
-    while (i < unfoldings.length){
-      val current = unfoldings(i)
-      val name = current.acc.loc.predicateName
-      if (!visitedPredicates.contains(name)){
-        visitedPredicates += name
-        val pred = program.findPredicate(name)
-        if (pred.body.isDefined) {
-          val bodyExp : Exp = pred.body.get
-          subexpressions ++= Seq(bodyExp)
-          unfoldings ++= bodyExp.deepCollect { case u@Unfolding(_, _) => u }
-        }
-      }
-      i += 1
-    }
-    subexpressions
-  }
 
   /** Returns the call graph of a given program (also considering specifications as calls).
     *
-    * TODO: Memoize invocations of `getFunctionCallgraph`. Note that it's unclear how to derive a useful key from `subs`
+    * TODO: Memoize invocations of `getFunctionCallgraph`.
     */
   def getFunctionCallgraph(program: Program, subs: Function => Seq[Exp] = allSubexpressions)
                           : DefaultDirectedGraph[Function, DefaultEdge] = {
+
     val graph = new DefaultDirectedGraph[Function, DefaultEdge](classOf[DefaultEdge])
 
     for (f <- program.functions) {
       graph.addVertex(f)
     }
 
-    def process(f: Function, e: Exp): Unit = {
+    def process(f: Function, e: Exp) {
       e visit {
         case FuncApp(f2name, _) =>
           graph.addEdge(f, program.findFunction(f2name))
@@ -77,23 +55,16 @@ object Functions {
     *
     * Phrased differently, if a function f1 (transitively) calls another function
     * f2, then f2 will have a greater height than f1 (or the same, if f2 in turn
-    * calls f1). If the flag considerUnfoldings is set, calls to f2 in the body of
-    * a predicate that is unfolded by f1 are also taken into account.
+    * calls f1).
     */
-  def heights(program: Program, considerUnfoldings: Boolean = false): Map[Function, Int] = {
+  def heights(program: Program): Map[Function, Int] = {
     val result = collection.mutable.Map[Function, Int]()
 
     /* Compute the call-graph over all functions in the given program.
      * An edge from f1 to f2 denotes that f1 calls f2, either in the function
-     * body or in the specifications. If the flag considerUnfoldings is set,
-     * an edge can also mean that f1 unfolds a predicate in whose body f2
-     * is called.
+     * body or in the specifications.
      */
-    val callGraph = if (considerUnfoldings){
-      getFunctionCallgraph(program, allSubexpressionsIncludingUnfoldings(program))
-    }else{
-      getFunctionCallgraph(program, allSubexpressions)
-    }
+    val callGraph = getFunctionCallgraph(program)
 
 ///* debugging */
 //    val functionVNP = new org.jgrapht.ext.VertexNameProvider[Function] {
@@ -185,12 +156,12 @@ object Functions {
   def recursiveCallsAndSurroundingUnfoldings(f : Function) : Seq[(FuncApp,Seq[Unfolding])] = {
     var result: Seq[(FuncApp, Seq[Unfolding])] = Seq()
 
-    def recordCallsAndUnfoldings(e: Node, ufs: Seq[Unfolding]): Unit = {
+    def recordCallsAndUnfoldings(e: Node, ufs: Seq[Unfolding]) {
       e.shallowCollect {
-      case Let(_, e, bod) => recordCallsAndUnfoldings(e.replace(e, bod), ufs)
-      case uf@Unfolding (_, body) =>
+      case Let(v, e, bod) => recordCallsAndUnfoldings(e.replace(e, bod), ufs)
+      case uf@Unfolding (acc, body) =>
         recordCallsAndUnfoldings (body, ufs :+ uf) // note: acc is not recursively-processed - we may want to revisit this decision
-      case fa@FuncApp (_, args) =>
+      case fa@FuncApp (func, args) =>
         result +:= (fa, ufs)
         args.foreach ((n) => recordCallsAndUnfoldings (n, ufs) )
       }
@@ -213,7 +184,7 @@ object Functions {
   }
 
   /** Returns all cycles formed by functions that (transitively through certain subexpressions)
-    * recurse via certain expressions.
+    * recurses via certain expressions.
     *
     * @param program The program that defines the functions to check for cycles.
     * @param via The expression the cycle has to go through.
@@ -232,34 +203,12 @@ object Functions {
 
     program.functions.flatMap(func => {
       val graph = getFunctionCallgraph(program, viaSubs(func))
-      findCycles(graph, func)
+      val cycleDetector = new CycleDetector(graph)
+      val cycle = cycleDetector.findCyclesContainingVertex(func).asScala
+      if (cycle.isEmpty)
+        None
+      else
+        Some(func -> cycle.toSet)
     }).toMap[Function, Set[Function]]
-  }
-
-  /** Returns all cycles formed by functions that (transitively through certain subexpressions)
-    * recurse via certain expressions. This is an optimized version of `findFunctionCyclesVia` in case
-    * `via` and `subs` are equivalent.
-    *
-    * @param program The program that defines the functions to check for cycles.
-    * @param via     The expression the cycle has to go through.
-    * @return A map from functions to sets of functions. If a function `f` maps to a set of
-    *         functions `fs`, then `f` (transitively) recurses via, and the
-    *         formed cycles involves the set of functions `fs`.
-    */
-  def findFunctionCyclesViaOptimized(program: Program, via: Function => Seq[Exp])
-  : Map[Function, Set[Function]] = {
-    val graph = getFunctionCallgraph(program, via)
-    program.functions.flatMap(func => {
-      findCycles(graph, func)
-    }).toMap[Function, Set[Function]]
-  }
-
-  private def findCycles(graph: DefaultDirectedGraph[Function, DefaultEdge], func: Function): Option[(Function, Set[Function])] = {
-    val cycleDetector = new CycleDetector(graph)
-    val cycle = cycleDetector.findCyclesContainingVertex(func).asScala
-    if (cycle.isEmpty)
-      None
-    else
-      Some(func -> cycle.toSet)
   }
 }

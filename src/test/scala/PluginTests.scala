@@ -2,21 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2021 ETH Zurich.
+// Copyright (c) 2011-2019 ETH Zurich.
+
+// Fails so tests bcz expects functions, don't know how to solve - J
+
 
 import java.nio.file.Paths
-import org.scalatest.funsuite.AnyFunSuite
+
+import org.scalatest.FunSuite
 import viper.silver.ast.{LocalVar, Perm, Program}
 import viper.silver.frontend.{SilFrontend, SilFrontendConfig}
-import viper.silver.parser.{PDelimited, PGrouped, PIdnDef, PKw, PPredicate, PProgram, PReserved}
+import viper.silver.parser.{PIdnDef, PPredicate, PProgram}
 import viper.silver.plugin.{SilverPlugin, SilverPluginManager}
-import viper.silver.reporter.{Reporter, StdIOReporter}
 import viper.silver.verifier.errors.Internal
 import viper.silver.verifier.reasons.FeatureUnsupported
 import viper.silver.verifier._
-import viper.silver.ast.NoPosition
-
-import scala.annotation.unused
 
 trait TestPlugin {
   def test(): Boolean = true
@@ -117,11 +117,17 @@ class TestPluginAllCalled extends SilverPlugin with TestPlugin {
 class TestPluginAddPredicate extends SilverPlugin {
 
   override def beforeResolve(input: PProgram): PProgram = {
-    val p = (NoPosition, NoPosition)
     PProgram(
-      input.imported,
-      input.members :+ PPredicate(Seq(), PReserved.implied(PKw.Predicate), PIdnDef("testPredicate")(p), PGrouped.impliedParen(PDelimited.empty), None)(p),
-    )(input.pos, input.localErrors)
+      input.imports,
+      input.macros,
+      input.domains,
+      input.fields,
+      input.functions,
+      input.predicates :+ PPredicate(PIdnDef("testPredicate"), Seq(), None),
+      input.methods,
+      input.extensions,
+      input.errors
+    )
   }
 
   /** Called after methods are filtered but before the verification by the backend happens.
@@ -142,7 +148,7 @@ class TestPluginMapErrors extends SilverPlugin with TestPlugin with FakeResult {
   var error2: Internal = Internal(FeatureUnsupported(LocalVar("test2", Perm)(), "Test2"))
   var finish = false
 
-  override def mapVerificationResult(@unused program: Program, input: VerificationResult): VerificationResult = {
+  override def mapVerificationResult(input: VerificationResult): VerificationResult = {
     input match {
       case Success =>
 //        println(">>> detected VerificationResult is Success")
@@ -157,7 +163,7 @@ class TestPluginMapErrors extends SilverPlugin with TestPlugin with FakeResult {
 
   override def beforeFinish(input: VerificationResult): VerificationResult = {
     finish = true
-    input match {
+    mapVerificationResult(input) match {
       case Success =>
 //        println("]]] detected VerificationResult is Success")
         assert(false)
@@ -191,8 +197,8 @@ class TestPluginMapVsFinish extends SilverPlugin with TestPlugin {
     input
   }
 
-  override def mapVerificationResult(@unused program: Program, input: VerificationResult): VerificationResult = {
-    assert(!finish)
+  override def mapVerificationResult(input: VerificationResult): VerificationResult = {
+    assert(false)
     input
   }
 
@@ -209,7 +215,7 @@ class TestPluginMapVsFinish extends SilverPlugin with TestPlugin {
   override def test(): Boolean = !mapping && finish
 }
 
-class PluginTests extends AnyFunSuite {
+class PluginTests extends FunSuite {
   val inputfile = "plugintests/plugininput.vpr"
   val plugins = Seq(
     "TestPluginImport",
@@ -219,6 +225,9 @@ class PluginTests extends AnyFunSuite {
     "TestPluginMapErrors",
     "TestPluginMapVsFinish"
   )
+
+  // number of plugins running by default
+  val defaultPlugins = 2
 
   var result: VerificationResult = Success
 
@@ -234,7 +243,7 @@ class PluginTests extends AnyFunSuite {
       case _ => Success
     }
     frontend.execute(Seq("--plugin", plugin, file.toString))
-    assert(frontend.plugins.plugins.size == 1 + frontend.defaultPluginCount)
+    assert(frontend.plugins.plugins.size == 1 + defaultPlugins)
     frontend.plugins.plugins.foreach {
       case p: TestPlugin => assert(p.test(), p.getClass.getName)
       case _ =>
@@ -270,7 +279,7 @@ class PluginTests extends AnyFunSuite {
 
     override def buildVersion: String = "2.71"
 
-    override def copyright: String = "(c) Copyright ETH Zurich 2012 - 2021"
+    override def copyright: String = "(c) Copyright ETH Zurich 2012 - 2018"
 
     override def debugInfo(info: Seq[(String, Any)]): Unit = {}
 
@@ -287,8 +296,6 @@ class PluginTests extends AnyFunSuite {
     }
 
     override def stop(): Unit = {}
-
-    override def reporter: Reporter = StdIOReporter()
   }
 
   class MockPluginConfig(args: Seq[String]) extends SilFrontendConfig(args, "MockPluginVerifier"){

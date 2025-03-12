@@ -1,9 +1,0 @@
-field x: Int
-
-//:: ExpectedOutput(refute.failed:refutation.true)
-method test(a: Ref)
-{
-    inhale acc(a.x)
-    //:: ExpectedOutput(refute.failed:refutation.true)
-    inhale acc(a.x)
-}

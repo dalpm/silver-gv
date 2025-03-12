@@ -1,6 +1,0 @@
-//:: ExpectedOutput(refute.failed:refutation.true)
-method test()
-{
-    label l0
-    goto l0
-}

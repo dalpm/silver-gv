@@ -17,11 +17,9 @@ import viper.silver.verifier._
 /**
  * Error for all termination related failed assertions.
  */
-sealed abstract class AbstractTerminationError extends ExtensionAbstractVerificationError {
+abstract class AbstractTerminationError() extends AbstractVerificationError {
   override val id = "termination.failed"
 }
-
-sealed abstract class TerminationErrorReason extends ExtensionAbstractErrorReason
 
 case class FunctionTerminationError(override val offendingNode: ErrorNode,
                                     override val reason: ErrorReason,
@@ -29,9 +27,9 @@ case class FunctionTerminationError(override val offendingNode: ErrorNode,
   override val text = s"Function might not terminate."
 
   override def withNode(offendingNode: errors.ErrorNode = this.offendingNode): FunctionTerminationError =
-    FunctionTerminationError(this.offendingNode, this.reason, this.cached)
+    FunctionTerminationError(this.offendingNode, this.reason)
 
-  override def withReason(r: ErrorReason): FunctionTerminationError = FunctionTerminationError(offendingNode, r, cached)
+  override def withReason(r: ErrorReason): FunctionTerminationError = FunctionTerminationError(offendingNode, r)
 }
 
 case class MethodTerminationError(override val offendingNode: ErrorNode,
@@ -40,9 +38,9 @@ case class MethodTerminationError(override val offendingNode: ErrorNode,
   override val text = s"Method might not terminate."
 
   override def withNode(offendingNode: errors.ErrorNode = this.offendingNode): MethodTerminationError =
-    MethodTerminationError(this.offendingNode, this.reason, this.cached)
+    MethodTerminationError(this.offendingNode, this.reason)
 
-  override def withReason(r: ErrorReason): MethodTerminationError = MethodTerminationError(offendingNode, r, this.cached)
+  override def withReason(r: ErrorReason): MethodTerminationError = MethodTerminationError(offendingNode, r)
 }
 
 case class LoopTerminationError(override val offendingNode: ErrorNode,
@@ -51,9 +49,9 @@ case class LoopTerminationError(override val offendingNode: ErrorNode,
   override val text = s"Loop might not terminate."
 
   override def withNode(offendingNode: errors.ErrorNode = this.offendingNode): LoopTerminationError =
-    LoopTerminationError(this.offendingNode, this.reason, this.cached)
+    LoopTerminationError(this.offendingNode, this.reason)
 
-  override def withReason(r: ErrorReason): LoopTerminationError = LoopTerminationError(offendingNode, r, cached)
+  override def withReason(r: ErrorReason): LoopTerminationError = LoopTerminationError(offendingNode, r)
 }
 
 
@@ -61,7 +59,7 @@ case class LoopTerminationError(override val offendingNode: ErrorNode,
  Reasons for all termination related failed assertions.
  */
 
-case class TerminationConditionFalse(offendingNode: ErrorNode) extends TerminationErrorReason {
+case class TerminationConditionFalse(offendingNode: ErrorNode) extends AbstractErrorReason {
   override val id: String = "termination.condition.false"
 
   override val readableMessage: String = s"Required termination condition might not hold."
@@ -69,7 +67,7 @@ case class TerminationConditionFalse(offendingNode: ErrorNode) extends Terminati
   override def withNode(offendingNode: ErrorNode): ErrorMessage = TerminationConditionFalse(offendingNode)
 }
 
-case class TupleConditionFalse(offendingNode: ErrorNode) extends TerminationErrorReason {
+case class TupleConditionFalse(offendingNode: ErrorNode) extends AbstractErrorReason {
   override val id: String = "tuple.condition.false"
 
   override val readableMessage: String = s"Required tuple condition might not hold."
@@ -77,7 +75,7 @@ case class TupleConditionFalse(offendingNode: ErrorNode) extends TerminationErro
   override def withNode(offendingNode: ErrorNode): ErrorMessage = TupleConditionFalse(offendingNode)
 }
 
-case class TupleSimpleFalse(offendingNode: ErrorNode) extends TerminationErrorReason {
+case class TupleSimpleFalse(offendingNode: ErrorNode) extends AbstractErrorReason {
   override val id: String = "tuple.false"
 
   override val readableMessage: String = s"Termination measure might not decrease or might not be bounded."
@@ -85,7 +83,7 @@ case class TupleSimpleFalse(offendingNode: ErrorNode) extends TerminationErrorRe
   override def withNode(offendingNode: ErrorNode): ErrorMessage = TupleSimpleFalse(offendingNode)
 }
 
-case class TupleDecreasesFalse(offendingNode: ErrorNode) extends TerminationErrorReason {
+case class TupleDecreasesFalse(offendingNode: ErrorNode) extends AbstractErrorReason {
   override val id: String = "tuple.false"
 
   override val readableMessage: String = s"Termination measure might not decrease."
@@ -93,7 +91,7 @@ case class TupleDecreasesFalse(offendingNode: ErrorNode) extends TerminationErro
   override def withNode(offendingNode: ErrorNode): ErrorMessage = TupleDecreasesFalse(offendingNode)
 }
 
-case class TupleBoundedFalse(offendingNode: ErrorNode) extends TerminationErrorReason {
+case class TupleBoundedFalse(offendingNode: ErrorNode) extends AbstractErrorReason {
   override val id: String = "tuple.false"
 
   override val readableMessage: String = s"Termination measure might not bounded."
