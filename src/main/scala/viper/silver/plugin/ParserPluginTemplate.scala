@@ -6,29 +6,39 @@
 
 package viper.silver.plugin
 
-import viper.silver.parser.{NameAnalyser, PAnnotationsPosition, PExp, PExtender, PKeyword, PSpecification, PKw, PMember, PReserved, PStmt, PTypeSubstitution, Translator, TypeChecker}
+import viper.silver.parser.{NameAnalyser, PExp, PExtender, PStmt, PTypeSubstitution, Translator, TypeChecker}
+import fastparse.noApi
 import viper.silver.ast.pretty.PrettyPrintPrimitives
-import viper.silver.ast.{Declaration, ErrorTrafo, Exp, ExtensionExp, ExtensionMember, ExtensionStmt, Info, Member, Node, NoPosition, Position, Stmt, Type}
+import viper.silver.ast.{Declaration, ErrorTrafo, Exp, ExtensionExp, ExtensionMember, ExtensionStmt, Info, Member, Node, Position, Stmt, Type}
+import viper.silver.parser.FastParser._
 import viper.silver.verifier.VerificationResult
 
 import scala.collection.Set
 
-import fastparse._
-
 trait ParserPluginTemplate {
-  import ParserPluginTemplate.Extension
+  /**
+    * The import statements that instantiate the PWhiteSpaceApi class and then import the overloaded sequencing operators
+    * of the "fastparse" library. It is extremely essential for these statements to exist in the parser.
+    */
+  val White = PWrapper {
+    import fastparse.all._
+    NoTrace((("/*" ~ (!StringIn("*/") ~ AnyChar).rep ~ "*/") | ("//" ~ CharsWhile(_ != '\n').? ~ ("\n" | End)) | " " | "\t" | "\n" | "\r").rep)
+  }
+  /**
+    * The below line is essential if one wishes to use the overridden files from fastparse for the plugin.
+    */
+  /** import White._ */
 
   /**
-    * The following variables form the main hooks for extending the parser
+    * The following three 10 variables form the main hooks for extending the parser
     */
-
   /**
     * The high level declarations which provide a hook for any type of independent declarations like new function or new predicates etc.
     * The high level declarations at the End Position are conservative extensions to the grammar. Extending the top level declaration using this parser
     * will not cause any effects in the pre existing parser and any other viper codes.
     *
     */
-  def newDeclAtEnd : Extension[PAnnotationsPosition => PExtender with PMember] = ParserPluginTemplate.defaultExtension
+  lazy val newDeclAtEnd: noApi.P[PExtender] = ParserPluginTemplate.defaultExtension
 
   /**
     * The high level declarations that are checked at the start of the parser. These have the highest priority over
@@ -36,68 +46,60 @@ trait ParserPluginTemplate {
     * if that particular top level construct is either particularly different from the top-level constructs in viper
     * or the programmer needs this particular rules to be executed with priority.
     */
-  def newDeclAtStart : Extension[PAnnotationsPosition => PExtender with PMember] = ParserPluginTemplate.defaultExtension
-
+  lazy val newDeclAtStart: noApi.P[PExtender] = ParserPluginTemplate.defaultExtension
   /**
     * The newStmt parser which is essentially an extension of the stmt rules in the new parser.
     * The statements at the End Position are conservative extensions to the grammar. Extending the statements using this parser
     * will not cause any effects in the pre existing parser and any other viper codes.
     *
     */
-  def newStmtAtEnd : Extension[PStmt] = ParserPluginTemplate.defaultStmtExtension
+  lazy val newStmtAtEnd: noApi.P[PStmt] = ParserPluginTemplate.defaultStmtExtension
 
  /**
    * The newStmt parser which is essentially an extension of the stmt rules in the new parser.
    * This provides an extension to statements that can be used force the parser to parse certain rules with high priority
    */
-  def newStmtAtStart : Extension[PStmt] = ParserPluginTemplate.defaultStmtExtension
+  lazy val newStmtAtStart: noApi.P[PStmt] = ParserPluginTemplate.defaultStmtExtension
 
   /**
     * The newExp rule provides an extension to the expression parsers.
     * The expressions at the End Position are conservative extensions to the grammar. Extending the expressions using this parser
     * will not cause any effects in the pre existing parser and any other viper codes.
     */
-  def newExpAtEnd : Extension[PExp] = ParserPluginTemplate.defaultExpExtension
+  lazy val newExpAtEnd: noApi.P[PExp] = ParserPluginTemplate.defaultExpExtension
 
 /**
   * The newExp rule provides an extension to the expression parsers.
   * This provides an extension to expressions that can be used force the parser to parse certain rules with high priority
   */
-  def newExpAtStart : Extension[PExp] = ParserPluginTemplate.defaultExpExtension
+  lazy val newExpAtStart: noApi.P[PExp] = ParserPluginTemplate.defaultExpExtension
 
   /**
     * The specification rule provides an extension to the precondition expressions
     */
-  def preSpecification : Extension[PSpecification[PKw.PreSpec]] =
-    fp => ParserPluginTemplate.defaultExpExtension(fp).map(x => PSpecification(PReserved.implied(PKw.Requires), x)(NoPosition, NoPosition))
-
+  lazy val preSpecification: noApi.P[PExp] = ParserPluginTemplate.defaultExpExtension
   /**
     * The specification rule provides an extension to the postcondition expressions
     */
-  def postSpecification : Extension[PSpecification[PKw.PostSpec]] =
-    fp => ParserPluginTemplate.defaultExpExtension(fp).map(x => PSpecification(PReserved.implied(PKw.Ensures), x)(NoPosition, NoPosition))
-
+  lazy val postSpecification: noApi.P[PExp] = ParserPluginTemplate.defaultExpExtension
   /**
     * The specification rule provides an extension to the loop invariant specification expressions
     */
-  def invSpecification : Extension[PSpecification[PKw.InvSpec]] =
-    fp => ParserPluginTemplate.defaultExpExtension(fp).map(x => PSpecification(PReserved.implied(PKw.Invariant), x)(NoPosition, NoPosition))
-
+  lazy val invSpecification: noApi.P[PExp] = ParserPluginTemplate.defaultExpExtension
   /**
     * This rule extends the keywords. So new strings added to the set will be considered as keywords.
     */
-  def extendedKeywords = Set[PKeyword]()
+  lazy val extendedKeywords = Set[String]()
 
-  case class PExampleDeclaration()(val pos: (Position, Position)) extends PExtender{
+  case class PExampleDeclaration() extends PExtender{
     // The typechecker for this PAst node
     override def typecheck(t: TypeChecker, n: NameAnalyser): Option[Seq[String]] = ???
     // These two founction for translating PAst to Ast nodes are applicable only in the case of this class being a high level declaration
     override def translateMember(t: Translator): Member = ???
     override def translateMemberSignature(t: Translator): Member = super.translateMemberSignature(t)
-    override def pretty = ""
   }
 
-  case class PExampleStmt()(val pos: (Position, Position)) extends PExtender with PStmt{
+  case class PExampleStmt() extends PExtender with PStmt{
     //The overridden typechecker for this PAst node
     override def typecheck(t: TypeChecker, n: NameAnalyser): Option[Seq[String]] = ???
     
@@ -105,7 +107,7 @@ trait ParserPluginTemplate {
     override def translateStmt(t: Translator): Stmt = super.translateStmt(t)
   }
 
-  case class PExampleExp()(val pos: (Position, Position)) extends PExtender with PExp{
+  case class PExampleExp() extends PExtender with PExp{
     // These two function must be mandatorily extended due to semantic analysis rules
     override def typeSubstitutions: Seq[PTypeSubstitution] = ???
     override def forceSubstitution(ts: PTypeSubstitution): Unit = ???
@@ -128,7 +130,6 @@ trait ParserPluginTemplate {
     override def name: String = ???
     override def errT: ErrorTrafo = ???
     override def info: Info = ???
-    override def prettyPrint: PrettyPrintPrimitives#Cont = ???
   }
 
   /**
@@ -142,8 +143,6 @@ trait ParserPluginTemplate {
     override def errT: ErrorTrafo = ???
     override def info: Info = ???
     override def prettyPrint: PrettyPrintPrimitives#Cont = ???
-    /** declarations contributed by this statement that should be added to the parent scope */
-    override def declarationsInParentScope: Seq[Declaration] = ???
   }
 
   /**
@@ -168,18 +167,14 @@ trait ParserPluginTemplate {
   }
 }
 
+
 /**
   * A Companion Obejct that defines the default values of the parser extensions of types, PExtender(basic), PStmt(Statements)
   * and PExp(Expressions)
   */
-object ParserPluginTemplate {
-  type Extension[T] = P[_] => P[T]
+object ParserPluginTemplate{
+  lazy val defaultExtension: noApi.P[PExtender] = noApi.Fail
+  lazy val defaultStmtExtension: noApi.P[PStmt] = noApi.Fail
+  lazy val defaultExpExtension: noApi.P[PExp] = noApi.Fail
 
-  def combine[T](left : Extension[T], right : Extension[T]) : Extension[T] = {
-    implicit ctx : P[_] => P(left(ctx) | right(ctx))
-  }
-
-  def defaultExtension : Extension[PAnnotationsPosition => PExtender with PMember] = Fail(_)
-  def defaultStmtExtension : Extension[PStmt] = Fail(_)
-  def defaultExpExtension : Extension[PExp] = Fail(_)
 }

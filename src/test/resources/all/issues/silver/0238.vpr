@@ -1,6 +1,8 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+//:: IgnoreFile(/silicon/issue/208/)
+
 // Test case 1
 domain A1 {
   axiom x1 {
@@ -26,6 +28,7 @@ function q2(s:Int) : Bool
 // Example 3
 domain A3 {
   axiom x3 {
+    //:: ExpectedOutput(typechecker.error)
     g3()
   }
 }
@@ -44,7 +47,6 @@ domain A4 {
 }
 
 function g4(): Bool
-  requires true
 
 // Example 5
 domain A5 {

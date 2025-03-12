@@ -9,12 +9,12 @@ package viper.silver.ast.utility
 import viper.silver.ast
 import viper.silver.ast._
 
-import java.util.concurrent.atomic.AtomicInteger
-
 /** Utility methods for triggers */
 object Triggers {
-
-  class TriggerGeneration extends GenericTriggerGenerator[Node, Type, Exp, LocalVar, QuantifiedExp] {
+  /** Attention: The trigger generator is *not* thread-safe, because its super class
+    * [[GenericTriggerGenerator]] is not.
+    */
+  object TriggerGeneration extends GenericTriggerGenerator[Node, Type, Exp, LocalVar, QuantifiedExp] {
     protected def hasSubnode(root: Node, child: Node) = root.hasSubnode(child)
     protected def visit[A](root: Node)(f: PartialFunction[Node, A]) = root.visit(f)
     protected def deepCollect[A](root: Node)(f: PartialFunction[Node, A]) = root.deepCollect(f)
@@ -29,9 +29,7 @@ object Triggers {
 
     /* True iff the given node is a possible trigger */
     protected def isPossibleTrigger(e: Exp): Boolean = (customIsPossibleTrigger orElse {
-      case _: PossibleTrigger => true
-      case Old(_: PossibleTrigger) => true
-      case LabelledOld(_: PossibleTrigger, _) => true
+      case p: PossibleTrigger => true
       case _ => false
     }: PartialFunction[Exp, Boolean])(e)
 
@@ -45,61 +43,23 @@ object Triggers {
     protected def withArgs(e: Exp, args: Seq[Exp]): Exp = e match {
       case pt: PossibleTrigger => pt.withArgs(args)
       case fa: FieldAccess => fa.withArgs(args)
-      case o@Old(pt: PossibleTrigger) => Old(pt.withArgs(args))(o.pos, o.info, o.errT)
-      case o@LabelledOld(pt: PossibleTrigger, lbl) => LabelledOld(pt.withArgs(args), lbl)(o.pos, o.info, o.errT)
-      case _ => sys.error(s"Unexpected expression $e")
+      case other => sys.error(s"Unexpected expression $e")
     }
 
     protected def getArgs(e: Exp): Seq[Exp] = e match {
       case pt: PossibleTrigger => pt.getArgs
       case fa: FieldAccess => fa.getArgs
-      case Old(pt: PossibleTrigger) => pt.getArgs
-      case LabelledOld(pt: PossibleTrigger, _) => pt.getArgs
-      case _ => sys.error(s"Unexpected expression $e")
-    }
-
-    override def modifyPossibleTriggers(relevantVars: Seq[LocalVar]) = {
-      case ast.Old(_) => results =>
-        results.flatten.map(t => {
-          val exp = t._1
-          (ast.Old(exp)(exp.pos, exp.info, exp.errT), t._2, t._3)
-        })
-      case ast.LabelledOld(_, l) => results =>
-        results.flatten.map(t => {
-          val exp = t._1
-          (ast.LabelledOld(exp, l)(exp.pos, exp.info, exp.errT), t._2, t._3)
-        })
-      case ast.Let(v, e, _) => results =>
-        results.flatten.map(t => {
-          val exp = t._1
-          val coveredVars = t._2.filter(cv => cv != v.localVar) ++ relevantVars.filter(rv => e.contains(rv))
-          (exp.replace(v.localVar, e), coveredVars, t._3)
-        })
-    }
-
-    override def additionalRelevantVariables(relevantVars: Seq[LocalVar], varsToAvoid: Seq[LocalVar]): PartialFunction[Node, Seq[LocalVar]] = {
-      case ast.Let(v, e, _) if relevantVars.exists(v => e.contains(v)) && varsToAvoid.forall(v => !e.contains(v)) =>
-        Seq(v.localVar)
+      case other => sys.error(s"Unexpected expression $e")
     }
   }
 
-  /**
-    * We offer two objects with different configurations.
-    * If several Viper instances are to be used concurrently, code *must not* call the setCustomIsForbiddenTrigger and
-    * setCustomIsPossibleTrigger methods on these objects.
+  /** Attention: The axiom rewriter is *not* thread-safe, because it makes use of the
+    * [[TriggerGeneration]], which is not thread-safe.
     */
-  object DefaultTriggerGeneration extends TriggerGeneration
-
-  object TriggerGenerationWithAddAndSubtract extends TriggerGeneration {
-    customIsForbiddenInTrigger = {
-      case _: ast.Add | _: ast.Sub => false
-    }
-  }
-
   object AxiomRewriter extends GenericAxiomRewriter[Type, Exp, LocalVar, QuantifiedExp, EqCmp, And, Implies, Add, Sub,
                                                     Trigger] {
 
-    private val nextUniqueId = new AtomicInteger(0)
+    private var nextUniqueId = 0
 
     /*
      * Abstract members - type arguments
@@ -134,7 +94,7 @@ object Triggers {
     protected def Trigger(exps: Seq[Exp]) = ast.Trigger(exps)()
 
     /* True iff the given node is not allowed in triggers */
-    protected def isForbiddenInTrigger(e: Exp): Boolean = DefaultTriggerGeneration.isForbiddenInTrigger(e)
+    protected def isForbiddenInTrigger(e: Exp): Boolean = TriggerGeneration.isForbiddenInTrigger(e)
 
     /*
      * Abstract members - dependencies
@@ -143,12 +103,13 @@ object Triggers {
     protected val solver = SimpleArithmeticSolver
 
     protected def fresh(name: String, typ: Type) = {
-      LocalVar(s"__rw_$name${nextUniqueId.incrementAndGet()}", typ)()
+      nextUniqueId += 1
+      LocalVar(s"__rw_$name$nextUniqueId", typ)()
     }
 
-    protected def log(message: String): Unit = {}
-    protected def log(key: String, item: Any): Unit = {}
-    protected def log(key: String, items: Iterable[Any]): Unit = {}
+    protected def log(message: String) {}
+    protected def log(key: String, item: Any) {}
+    protected def log(key: String, items: Iterable[Any]) {}
   }
 
   object SimpleArithmeticSolver extends GenericArithmeticSolver[Type, Exp, LocalVar, Add, Sub] {

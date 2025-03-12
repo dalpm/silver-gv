@@ -8,19 +8,14 @@ package viper.silver.verifier
 
 import viper.silver.ast._
 
-import scala.annotation.unused
-
 /** Describes the outcome of a verification attempt of a Viper program.
 
   */
-sealed trait VerificationResult {
-  def transformedResult(): VerificationResult
-}
+sealed trait VerificationResult
 
 /** A successful verification. */
 object Success extends VerificationResult {
   override def toString = "Verification successful."
-  override def transformedResult(): VerificationResult = this
 }
 
 /** A non-successful verification.
@@ -33,7 +28,6 @@ case class Failure(errors: Seq[AbstractError]) extends VerificationResult {
       (errors map (e => "[" + e.fullId + "] " + e.readableMessage))
         .mkString("\n  ")
   }
-  override def transformedResult(): VerificationResult = Failure(errors.map(_.transformedError()))
 }
 
 /**
@@ -51,33 +45,20 @@ trait AbstractError {
   def readableMessage: String
 
   /* TODO: Simply looking for pos in message is rather fragile */
-  override def toString: String = {
+  override def toString = {
     val msg = readableMessage
     val posStr = pos.toString
 
-    (if (msg contains posStr) s"$msg"
-    else s"$msg ($posStr)") +
-      (if (cached) " - cached" else "")
+    if (msg contains posStr) s"$msg"
+    else s"$msg ($posStr)"
   }
 
   val cached: Boolean = false
 
   var scope: Option[Member] = None
-
-  /** This method could be used for implementing the scope filed via an offending node.
-    * TODO: make scope a mandatory field (do not provide a default value for it). */
-  protected def getMemberForNode(ast: Program, node: Node): Member = {
-    val members_with_this_node = ast.members.collect {
-      case m if m.deepCollect({ case n => n == node }).nonEmpty => m
-    }
-    assert(members_with_this_node.length == 1)
-    members_with_this_node.last
-  }
-
-  def transformedError(): AbstractError = this
 }
 
-abstract class ParseReport(@unused message: String, @unused pos: Position) extends AbstractError
+abstract class ParseReport(message: String, pos: Position) extends AbstractError
 
 /** A parser error. */
 case class ParseError(message: String, override val pos: Position)
@@ -98,13 +79,6 @@ case class TypecheckerWarning(message: String, override val pos: Position)
     extends AbstractError {
   def fullId = "typechecker.warning"
   def readableMessage = s"Type checker warning: $message ($pos)"
-}
-
-/** A case class used for treating certain verifier reports as non-critical. */
-case class VerifierWarning(message: String, override val pos: Position)
-  extends AbstractError {
-  def fullId = "verifier.warning"
-  def readableMessage = s"Verifier warning: $message ($pos)"
 }
 
 /** An error during consistency-checking an AST node */
@@ -149,8 +123,6 @@ case class TimeoutOccurred(n: Long, units: String) extends AbstractError {
 case class AbortedExceptionally(cause: Throwable) extends AbstractError {
   def pos = NoPosition
   def fullId = "exceptional.error"
-  def readableMessage = s"Verification aborted exceptionally (${cause.toString()}, ${
-    cause.printStackTrace()
-    cause.getStackTrace().tail.head.toString()
-  })"
+  def readableMessage =
+    s"Verification aborted exceptionally: ${cause.getMessage}"
 }

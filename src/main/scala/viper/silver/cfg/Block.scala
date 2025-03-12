@@ -31,7 +31,7 @@ sealed trait Block[S, E] {
 }
 
 object Block {
-  private val id = new AtomicInteger(0)
+  private var id = new AtomicInteger(0)
 
   def nextId(): Int = {
     id.incrementAndGet()
@@ -58,7 +58,7 @@ object StatementBlock {
   def apply[S, E](stmts: Seq[S] = Nil): StatementBlock[S, E] =
     new StatementBlock(Block.nextId(), stmts)
 
-  def unapply[S, E](block: StatementBlock[S, E]): Some[Seq[S]] =
+  def unapply[S, E](block: StatementBlock[S, E]): Option[Seq[S]] =
     Some(block.stmts)
 }
 
@@ -118,20 +118,42 @@ object PostconditionBlock {
   * @tparam S The type of the statements.
   * @tparam E The type of the expressions.
   */
-final class LoopHeadBlock[S, E] private(val id: Int, val invs: Seq[E], val stmts: Seq[S], val loopId: Option[Int])
+final class LoopHeadBlock[S, E] private(val id: Int, val invs: Seq[E], val stmts: Seq[S])
   extends Block[S, E] {
   override lazy val elements: Seq[Either[S, E]] = invs.map(Right(_)) ++ stmts.map(Left(_))
 
-  override def toString: String = {
-    val ids = if (loopId.isDefined) s"$id, ${loopId.get}" else id.toString
-    s"LoopHeadBlock($ids)"
-  }
+  override def toString: String = s"LoopHeadBlock($id)"
 }
 
 object LoopHeadBlock {
-  def apply[S, E](invs: Seq[E] = Nil, stmts: Seq[S] = Nil, loopId: Option[Int] = None): LoopHeadBlock[S, E] =
-    new LoopHeadBlock(Block.nextId(), invs, stmts, loopId)
+  def apply[S, E](invs: Seq[E] = Nil, stmts: Seq[S] = Nil): LoopHeadBlock[S, E] =
+    new LoopHeadBlock(Block.nextId(), invs, stmts)
 
-  def unapply[S, E](block: LoopHeadBlock[S, E]): Some[(Seq[E], Seq[S], Option[Int])] =
-    Some((block.invs, block.stmts, block.loopId))
+  def unapply[S, E](block: LoopHeadBlock[S, E]): Option[(Seq[E], Seq[S])] =
+    Some((block.invs, block.stmts))
+}
+
+/**
+  * A basic block corresponding to a constraining statement, that is, the
+  * variables can be constrained inside the body.
+  *
+  * @param id   The id of the basic block.
+  * @param vars The variables to constrain.
+  * @param body The cfg corresponding to the body of the constraining statement.
+  * @tparam S The type of the statements.
+  * @tparam E The type of the expressions.
+  */
+final class ConstrainingBlock[S, E] private(val id: Int, val vars: Seq[E], val body: Cfg[S, E])
+  extends Block[S, E] {
+  override lazy val elements: Seq[Either[S, E]] = vars.map(Right(_))
+
+  override def toString: String = s"ConstrainingBlock($id)"
+}
+
+object ConstrainingBlock {
+  def apply[S, E](vars: Seq[E], body: Cfg[S, E]): ConstrainingBlock[S, E] =
+    new ConstrainingBlock(Block.nextId(), vars, body)
+
+  def unapply[S, E](block: ConstrainingBlock[S, E]): Option[(Seq[E], Cfg[S, E])] =
+    Some((block.vars, block.body))
 }

@@ -6,9 +6,8 @@
 
 package viper.silver
 
-import viper.silver.ast.{SourcePosition, Position => ViperPosition}
-import viper.silver.ast.FilePosition
-import viper.silver.parser.PNode
+import viper.silver.ast.{HasLineColumn, SourcePosition, Position=>ViperPosition}
+import viper.silver.parser.FilePosition
 
 import scala.util.parsing.input.Position
 
@@ -53,11 +52,17 @@ object FastMessaging {
    /**
     * Makes a message list if cond is true. Stored with the position of the value
     */
-  def message (value : PNode, msg : String, cond : Boolean = true, error : Boolean = true) : Messages =
+  def message (value : Any, msg : String, cond : Boolean = true, error : Boolean = true) : Messages =
     if (cond) {
-      val valuePos = value.errorPosition match {
-        case pos: SourcePosition => pos
-        case other => sys.error(s"Unexpected position type: ${other} (${other.getClass()})")
+      val valuePos: SourcePosition = FastPositions.getStart(value) match {
+        case slc: FilePosition => {
+          FastPositions.getFinish(value) match {
+            case flc: HasLineColumn => {
+              SourcePosition(slc.file, slc, flc)
+            }
+            case _ => SourcePosition(slc.file, slc.line, slc.column)
+          }
+        }
       }
       aMessage (FastMessage (msg, valuePos, error))
     } else {

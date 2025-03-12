@@ -8,18 +8,14 @@ package viper.silver.ast.utility
 
 import viper.silver.ast._
 import viper.silver.ast.utility.rewriter.Traverse
-import viper.silver.parser.FastParserCompanion
+import viper.silver.parser.FastParser
 import viper.silver.verifier.ConsistencyError
 import viper.silver.{FastMessage, FastMessaging}
 
 /** An utility object for consistency checking. */
 object Consistency {
   var messages: FastMessaging.Messages = Nil
-
-  // Set to enable legacy mode where permission amounts in function preconditions have their usual meaning instead
-  // of just just being treated as a kind of wildcard.
-  private var respectFunctionPrePermAmounts: Boolean = false
-  def recordIfNot(suspect: Positioned, property: Boolean, message: String): Unit = {
+  def recordIfNot(suspect: Positioned, property: Boolean, message: String) {
     if (!property) {
       val pos = suspect.pos
 
@@ -27,21 +23,13 @@ object Consistency {
     }
   }
 
-  /** Use this method to enable consistency checks suitable for the legacy mode where permission amounts in function
-    * preconditions have their standard meaning, instead of always meaning a kind of wildcard.
-    * In other words, this should be set iff the command line flag "--respectFunctionPrePermAmounts" is set.
-    * */
-  def setFunctionPreconditionLegacyMode(enableLegacyMode: Boolean) = {
-    respectFunctionPrePermAmounts = enableLegacyMode
-  }
-
-  def resetMessages(): Unit = { this.messages = Nil }
+  def resetMessages() { this.messages = Nil }
   @inline
-  def recordIf(suspect: Positioned, property: Boolean, message: String): Unit =
+  def recordIf(suspect: Positioned, property: Boolean, message: String) =
     recordIfNot(suspect, !property, message)
 
   /** Names that are not allowed for use in programs. */
-  def reservedNames: Set[String] = FastParserCompanion.basicKeywords.map(_.keyword)
+  def reservedNames: Seq[String] = FastParser.keywords.toSeq
 
   /** Returns true iff the string `name` is a valid identifier. */
   val identFirstLetter = "[a-zA-Z$_]"
@@ -123,18 +111,6 @@ object Consistency {
       !found
   }
 
-  def checkBackendTypes(p: Program, backendName: String): Seq[ConsistencyError] = {
-    var result: List[ConsistencyError] = Nil
-    for (domain <- p.domains) {
-      if (domain.interpretations.isDefined) {
-        if (!domain.interpretations.get.contains(backendName)) {
-          result = ConsistencyError(s"Domain ${domain.name} has no interpretation for backend ${backendName}.", domain.pos) :: result
-        }
-      }
-    }
-    result
-  }
-
   /** Convenience methods to treat null values as some other default values (e.g treat null as empty List) */
   def nullValue[T](a: T, b: T) = if (a != null) a else b
 
@@ -155,7 +131,7 @@ object Consistency {
     val inhalesExhales: Seq[Node] = e.deepCollect({case ie: InhaleExhaleExp => ie})
     permsAndForperms.flatMap(p=>{
       inhalesExhales.find(_.contains(p)) match {
-        case Some(_) => Seq()
+        case Some(node) => Seq()
         case None => Seq(ConsistencyError("Perm and forperm in this context are only allowed if nested under inhale-exhale assertions.", p.asInstanceOf[Positioned].pos))
       }
     })
@@ -183,7 +159,7 @@ object Consistency {
     for (c@MethodCall(_, _, targets) <- b; t <- targets if argVars.contains(t)) {
       s :+= ConsistencyError(s"$c is a reassignment of formal argument $t.", c.pos)
     }
-    for (n@NewStmt(l, _) <- b if argVars.contains(l)) {
+    for (n@NewStmt(l, _) <- b if argVars.contains(l)){
       s :+= ConsistencyError(s"$n is a reassignment of formal argument $l.", n.pos)
     }
     s
@@ -208,30 +184,6 @@ object Consistency {
     (if(!noLabelledOld(e)) Seq(ConsistencyError("Labelled-old expressions are not allowed in postconditions.", e.pos)) else Seq())
   }
 
-  def checkWildcardUsage(n: Node, inFunction: Boolean): Seq[ConsistencyError] = {
-    if (!respectFunctionPrePermAmounts && inFunction)
-      return Seq()
-
-    def checkValidUse(e: Exp): Seq[ConsistencyError] = {
-      val containedWildcards = e.shallowCollect {
-        case w: WildcardPerm => w
-      }
-      if (containedWildcards.nonEmpty) {
-        e match {
-          case _: WildcardPerm => Seq()
-          case _ => Seq(ConsistencyError("Wildcard occurs inside compound expression (should only occur directly in an accessibility predicate).", e.pos))
-        }
-      } else {
-        Seq()
-      }
-    }
-
-    n.collect{
-      case FieldAccessPredicate(_, Some(prm)) => checkValidUse(prm)
-      case PredicateAccessPredicate(_, Some(prm)) => checkValidUse(prm)
-    }.flatten.toSeq
-  }
-
   /** checks that all quantified variables appear in all triggers */
   def checkAllVarsMentionedInTriggers(variables: Seq[LocalVarDecl], triggers: Seq[Trigger]) : Seq[ConsistencyError] = {
     var s = Seq.empty[ConsistencyError]
@@ -241,18 +193,11 @@ object Consistency {
     variables.foreach(v=>{
       varsInTriggers.foreach(varList=>{
         varList.find(_.name == v.name) match {
-          case Some(_) =>
+          case Some(tr) =>
           case None => s :+= ConsistencyError(s"Variable ${v.name} is not mentioned in one or more triggers.", v.pos)
         }
       })
     })
-    for (t <- triggers) {
-      for (e <- t.exps) {
-        if (!variables.exists(v => e.contains(v.localVar))) {
-          s :+= ConsistencyError(s"Trigger expression $e does not contain any quantified variable.", e.pos)
-        }
-      }
-    }
     s
   }
 
@@ -265,7 +210,6 @@ object Consistency {
   def validTrigger(e: Exp, program: Program): Boolean = {
     e match {
       case Old(nested) => validTrigger(nested, program) // case corresponds to OldTrigger node
-      case LabelledOld(nested, _) => validTrigger(nested, program)
       case wand: MagicWand => wand.subexpressionsToEvaluate(program).forall(e => !e.existsDefined {case _: ForbiddenInTrigger => })
       case _ : PossibleTrigger | _: FieldAccess | _: PredicateAccess => !e.existsDefined { case _: ForbiddenInTrigger => }
       case _ => false
@@ -360,10 +304,9 @@ object Consistency {
     * Foo(...) must be pure except if it occurs inside Bar(...).
     *
     * @param n The starting node of the consistency check.
-    * @param p The program.
+    * @param c The initial context (optional).
     */
-  def checkContextDependentConsistency(n: Node, p: Program) : Seq[ConsistencyError] = {
-    val c = Context(p)
+  def checkContextDependentConsistency(n: Node, c: Context = Context()) : Seq[ConsistencyError] = {
     var s = Seq.empty[ConsistencyError]
     n.visitWithContext(c)(c => {
       case Package(_, proofScript @ Seqn(_, locals)) =>
@@ -373,8 +316,8 @@ object Consistency {
         c.copy(insideWandStatus = InsideWandStatus.Yes)
 
       case mw @ MagicWand(lhs, rhs) =>
-        s ++= checkWandRelatedOldExpressions(lhs, c.copy(insideWandStatus = InsideWandStatus.Left))
-        s ++= checkWandRelatedOldExpressions(rhs, c.copy(insideWandStatus = InsideWandStatus.Right))
+        s ++= checkWandRelatedOldExpressions(lhs, Context(insideWandStatus = InsideWandStatus.Left))
+        s ++= checkWandRelatedOldExpressions(rhs, Context(insideWandStatus = InsideWandStatus.Right))
 
         if(!noGhostOperations(mw))
           s :+= ConsistencyError("Ghost operations may not occur inside of wands.", mw.pos)
@@ -392,32 +335,6 @@ object Consistency {
       case wp@WildcardPerm() if !c.insideAccessPredicateStatus =>
         s :+= ConsistencyError("\"wildcard\" can only be used in accessibility predicates", wp.pos)
         c
-
-      case dt: DomainType =>
-        c.program.findDomainOptionally(dt.domainName) match {
-          case None =>
-            s :+= ConsistencyError(s"DomainType references non-existent domain ${dt.domainName}.", NoPosition)
-            c
-          case Some(domain) if domain.interpretations.isDefined =>
-            s :+= ConsistencyError(s"DomainType ${dt.domainName} references domain with interpretation; must use BackendType instead.", NoPosition)
-            c
-          case _ => c
-        }
-
-      case bt: BackendType =>
-        c.program.findDomainOptionally(bt.viperName) match {
-          case None =>
-            s :+= ConsistencyError(s"BackendType references non-existent domain ${bt.viperName}.", NoPosition)
-            c
-          case Some(domain) if domain.interpretations.isEmpty =>
-            s :+= ConsistencyError(s"BackendType ${bt.viperName} references domain without interpretation; must use DomainType instead.", NoPosition)
-            c
-          case Some(domain) if domain.interpretations.get != bt.interpretations =>
-            s :+= ConsistencyError(s"BackendType ${bt.viperName} has different interpretations than the domain it references.", NoPosition)
-            c
-          case _ => c
-        }
-
     })
     s
   }
@@ -460,7 +377,6 @@ object Consistency {
   }
 
   /** Context for context dependent consistency checking. */
-  case class Context(program: Program,
-                     insideWandStatus: InsideWandStatus = InsideWandStatus.No,
+  case class Context(insideWandStatus: InsideWandStatus = InsideWandStatus.No,
                      insideAccessPredicateStatus: Boolean = false)
 }

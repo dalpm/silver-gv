@@ -1,5 +1,0 @@
-//:: ExpectedOutput(refute.failed:refutation.true)
-method test() {
-    //:: ExpectedOutput(refute.failed:refutation.true)
-    assume false
-}

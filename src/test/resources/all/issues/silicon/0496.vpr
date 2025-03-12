@@ -1,7 +1,9 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-//:: IgnoreFile(/silver/issue/478/)
+//:: IgnoreFile(/silicon/issue/208/)
+
+//:: IgnoreFile(/carbon/issue/257/)
 
 field val: Int
 
@@ -14,7 +16,6 @@ method test00(a: Ref) {
 
 
 function reqA(a: Ref): Int
-  //:: ExpectedOutput(consistency.error)
   requires acc(a.val) --* acc(a.val)
 
 method test01(a: Ref) {
@@ -36,7 +37,6 @@ method test01(a: Ref) {
 
 
 function reqB(a: Ref): Int
-  //:: ExpectedOutput(consistency.error)
   requires true --* acc(a.val)
 
 method test02(a: Ref) {

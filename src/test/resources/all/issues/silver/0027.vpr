@@ -1,9 +1,11 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-field f: Int
+//:: IgnoreFile(/silicon/issue/208/)
 
 //:: ExpectedOutput(typechecker.error)
+field f: Int
+
 function f(): Bool { true }
 
 method m(x: Ref)
