@@ -735,7 +735,7 @@ object FastParser extends PosParser[Char, String] {
  *  seqRange, perm
  */
   lazy val atom: P[PExp] = P(ParserExtension.newExpAtStart | integer | booltrue | boolfalse | nul
-    | old | result | unExp | fapp | typedFapp
+    | old | result | unExp | fapp | typedFapp | unfolding
     | "(" ~ exp ~ ")" | accessPred
     | idnuse | ParserExtension.newExpAtEnd)
 
