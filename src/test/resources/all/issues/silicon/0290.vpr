@@ -6,7 +6,6 @@ field f: Ref
 predicate P(r: Ref) {
   acc(r.f) &&
   Q(r.f) &&
-  //:: ExpectedOutput(parser.error)
   unfolding Q(r.f) in true
 }
 
@@ -15,6 +14,7 @@ predicate Q(r: Ref) {true}
 method test01(r: Ref) returns ()
   requires acc(P(r))
 {
+  //:: ExpectedOutput(parser.error)
   unfold acc(P(r), wildcard)
 
   // ExpectedOutput(assert.failed:assertion.false) // revive this annotation when parser error not expected in this test file - Jenna
