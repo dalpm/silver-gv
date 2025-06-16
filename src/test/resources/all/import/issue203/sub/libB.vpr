@@ -5,7 +5,7 @@
 predicate b1() { true }
 predicate b2() { true }
 
-
+//:: ExpectedOutput(parser.error)
 domain D {
   function b1(): Bool
   function b2(): Bool

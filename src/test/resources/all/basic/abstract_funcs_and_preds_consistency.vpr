@@ -6,15 +6,14 @@ predicate foo()
 function fun(): Bool { true }
 */
 method test01() {
-  // ExpectedOutput(typechecker.error) // revive this annotation when parser error not expected in this test file - Jenna
+  //:: ExpectedOutput(typechecker.error) 
   fold acc(foo())
-  // ExpectedOutput(typechecker.error) // revive this annotation when parser error not expected in this test file - Jenna
+  //:: ExpectedOutput(typechecker.error)
   unfold acc(foo())
 }
 
 method test02() {
-  // ExpectedOutput(typechecker.error) // revive this annotation when parser error not expected in this test file - Jenna
-  //:: ExpectedOutput(parser.error)
+  //:: ExpectedOutput(typechecker.error)
   assert unfolding acc(foo()) in true
 }
 /*
@@ -27,6 +26,6 @@ function fun01(): Bool
 */
 predicate bar() {
      acc(foo())
-     // ExpectedOutput(typechecker.error) // revive this annotation when parser error not expected in this test file - Jenna
+     //:: ExpectedOutput(typechecker.error) 
   && unfolding acc(foo()) in true
 }
