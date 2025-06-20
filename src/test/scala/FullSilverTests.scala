@@ -10,7 +10,7 @@ import scala.io.Source
 class FullSilverTests extends FunSuite {
 
   // List of folders to test, all must be paths back to resources ("transformations" or "all/basic" for example)
-  val foldersToTest = Seq("gradual/isolation")
+  val foldersToTest = Seq("gradual")
 
   // options Parsing, Semantic Analysis, Translation, Consistency Check
   val runTill = "Consistency Check"
